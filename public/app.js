@@ -56,6 +56,60 @@ const fmtDateTime = (d) => {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+async function compressImageFile(file, maxSide = 1280, quality = 0.72) {
+  if (!file.type.startsWith('image/') || /gif|svg/i.test(file.type) || file.size < 250 * 1024) return file;
+  const bitmap = await loadImageBitmap(file);
+  if (!bitmap) return file;
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  let blob = null;
+  for (const q of [quality, 0.66, 0.58]) {
+    blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', q));
+    if (blob && blob.size <= Math.min(file.size * 0.85, 1200 * 1024)) break;
+  }
+  if (!blob || blob.size >= file.size) return file;
+  const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+}
+async function loadImageBitmap(file) {
+  if (typeof createImageBitmap === 'function') {
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    if (bitmap) return bitmap;
+  }
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+async function buildUploadFormData(form, extra = {}, onProgress) {
+  const fd = new FormData();
+  for (const el of Array.from(form.elements)) {
+    if (!el.name || el.disabled || el.type === 'file') continue;
+    if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) continue;
+    fd.append(el.name, el.value);
+  }
+  Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+  const fileItems = Array.from(form.querySelectorAll('input[type="file"][name]')).flatMap(input =>
+    Array.from(input.files || []).map(file => ({ name: input.name, file }))
+  );
+  for (let i = 0; i < fileItems.length; i++) {
+    const msg = `正在压缩图片 ${i + 1}/${fileItems.length}…`;
+    if (onProgress) onProgress(msg);
+    toast(msg);
+    fd.append(fileItems[i].name, await compressImageFile(fileItems[i].file));
+  }
+  return fd;
+}
+function imageAttrs(attrs = {}) {
+  return { loading: 'lazy', decoding: 'async', ...attrs };
+}
 /* ----- 小狗头像系统：金毛=男生、小白狗=女生 ----- */
 const MASCOT = {
   boy: ['/assets/mascots/boy-1.png', '/assets/mascots/boy-2.png'],
@@ -105,17 +159,36 @@ function confirmDialog(text) {
 }
 
 /* ---------- Modal ---------- */
-function showModal({ title, body, okText = '保存', cancelText = '取消', onOk, onCancel }) {
+function showModal({ title, body, okText = '保存', cancelText = '取消', pendingText = '处理中…', onOk, onCancel }) {
   const root = $('#modalRoot');
   root.innerHTML = '';
+  let pending = false;
   const mask = el('div', { class: 'modal-mask', onclick: (e) => { if (e.target === mask) (onCancel || closeModal)(); } });
   const modal = el('div', { class: 'modal' });
   modal.appendChild(el('h3', {}, title));
   if (typeof body === 'string') modal.insertAdjacentHTML('beforeend', body);
   else if (body) modal.appendChild(body);
+  const cancelBtn = el('button', { class: 'btn', onclick: () => { if (!pending) (onCancel || closeModal)(); } }, cancelText);
+  const okBtn = el('button', { class: 'btn primary', onclick: async () => {
+    if (!onOk || pending) return;
+    pending = true;
+    okBtn.disabled = true;
+    cancelBtn.disabled = true;
+    okBtn.textContent = pendingText;
+    try {
+      const result = await onOk();
+      if (result === false) throw new Error('');
+    } catch (e) {
+      pending = false;
+      okBtn.disabled = false;
+      cancelBtn.disabled = false;
+      okBtn.textContent = okText;
+      if (e.message) toast(e.message);
+    }
+  } }, okText);
   const foot = el('div', { class: 'modal-foot' }, [
-    el('button', { class: 'btn', onclick: () => (onCancel || closeModal)() }, cancelText),
-    el('button', { class: 'btn primary', onclick: () => onOk && onOk() }, okText),
+    cancelBtn,
+    okBtn,
   ]);
   modal.appendChild(foot);
   mask.appendChild(modal);
@@ -358,10 +431,10 @@ async function pageHome(app) {
 
   // small photo preview
   if (data.random?.photo) {
-    dyn.appendChild(el('img', {
+    dyn.appendChild(el('img', imageAttrs({
       src: data.random.photo.path, style: { width: '100%', height: '220px', objectFit: 'cover', borderRadius: '10px', marginTop: '10px', cursor: 'zoom-in' },
       onclick: () => lightbox(data.random.photo.path)
-    }));
+    })));
   }
   app.appendChild(dyn);
 }
@@ -414,7 +487,7 @@ async function pageAnniversaries(app) {
     const years = today.getFullYear() - d.getFullYear() + (next.getFullYear() > today.getFullYear() ? 0 : 0);
     const passedDays = Math.floor((today - d) / 86400000);
     grid.appendChild(el('div', { class: 'card' }, [
-      a.photo ? el('img', { src: a.photo, style: { width: '100%', height: '160px', objectFit: 'cover', borderRadius: '10px', marginBottom: '10px', cursor: 'zoom-in' }, onclick: () => lightbox(a.photo) }) : null,
+      a.photo ? el('img', imageAttrs({ src: a.photo, style: { width: '100%', height: '160px', objectFit: 'cover', borderRadius: '10px', marginBottom: '10px', cursor: 'zoom-in' }, onclick: () => lightbox(a.photo) })) : null,
       el('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'center' } }, [
         el('h3', { style: { margin: 0 } }, [
           a.pinned ? el('span', {}, '📌 ') : null,
@@ -475,15 +548,16 @@ function editAnniversary(a = {}) {
   showModal({
     title: a.id ? '编辑纪念日' : '添加纪念日',
     body: form,
+    pendingText: '正在压缩…',
     onOk: async () => {
-      const fd = new FormData(form);
+      const fd = await buildUploadFormData(form);
       fd.set('is_lunar', form.is_lunar.checked ? 1 : 0);
       if (!fd.get('photo')?.size) fd.delete('photo');
       try {
         const url = a.id ? '/api/anniversaries/'+a.id : '/api/anniversaries';
         await api(url, { method: a.id ? 'PUT' : 'POST', body: fd });
         toast('已保存'); closeModal(); route();
-      } catch (e) { toast(e.message); }
+      } catch (e) { throw e; }
     }
   });
 }
@@ -610,7 +684,7 @@ async function pageTimeline(app) {
           const isVideo = p.media_type === 'video';
           const mediaEl = isVideo 
             ? el('video', { src: p.path, controls: true, style: { width: '100%', height: '200px', objectFit: 'cover', borderRadius: '10px' } })
-            : el('img', { src: p.path, onclick: () => lightbox(p.path, allImages.map(x => x.path), allImages.indexOf(p)), style: { width: '100%', height: 'auto', borderRadius: '10px', cursor: 'zoom-in' } });
+            : el('img', imageAttrs({ src: p.path, onclick: () => lightbox(p.path, allImages.map(x => x.path), allImages.indexOf(p)), style: { width: '100%', height: 'auto', borderRadius: '10px', cursor: 'zoom-in' } }));
           
           dayContent.appendChild(el('div', { class: 'tl-card' }, [
             mediaEl,
@@ -687,11 +761,12 @@ function uploadPhotoModal(defaults = {}) {
   if (defaults.category) form.category.value = defaults.category;
   showModal({
     title: '上传照片/视频', body: form,
+    pendingText: '正在处理…',
     onOk: async () => {
-      const fd = new FormData(form);
-      if (!fd.getAll('files').length || !fd.getAll('files')[0].size) { toast('请选择文件'); return; }
-      try { await api('/api/photos', { method: 'POST', body: fd }); toast('已上传'); closeModal(); route(); }
-      catch (e) { toast(e.message); }
+      const files = Array.from(form.querySelector('input[name="files"]')?.files || []);
+      if (!files.length || !files[0].size) { toast('请选择文件'); return false; }
+      try { const fd = await buildUploadFormData(form); toast('正在上传，请稍候…'); await api('/api/photos', { method: 'POST', body: fd }); toast('已上传'); closeModal(); route(); }
+      catch (e) { throw e; }
     }
   });
 }
@@ -804,7 +879,7 @@ async function pageAlbumDetail(app, id) {
     const isVideo = p.media_type === 'video';
     const mediaEl = isVideo 
       ? el('video', { src: p.path, controls: true, style: { width: '100%', height: '200px', objectFit: 'cover', borderRadius: '10px' } })
-      : el('img', { src: p.path, onclick: () => lightbox(p.path, imagePaths, imagePaths.indexOf(p)) });
+      : el('img', imageAttrs({ src: p.path, onclick: () => lightbox(p.path, imagePaths, imagePaths.indexOf(p)) }));
     
     grid.appendChild(el('div', { class: 'tl-card' }, [
       mediaEl,
@@ -904,10 +979,12 @@ function uploadToAlbumModal(albumId) {
   `;
   showModal({
     title: '上传到相册', body: form,
+    pendingText: '正在处理…',
     onOk: async () => {
-      const fd = new FormData(form);
-      fd.append('album_id', albumId);
-      if (!fd.getAll('files').length || !fd.getAll('files')[0].size) { toast('请选择文件'); return; }
+      const files = Array.from(form.querySelector('input[name="files"]')?.files || []);
+      if (!files.length || !files[0].size) { toast('请选择文件'); return false; }
+      const fd = await buildUploadFormData(form, { album_id: albumId });
+      toast('正在上传，请稍候…');
       await api('/api/photos', { method: 'POST', body: fd });
       toast('已上传'); closeModal(); route();
     }
@@ -1169,9 +1246,9 @@ function completeTodo(t) {
     <div class="form-row"><label>心得感想</label><textarea name="reflection" placeholder="一起完成的感觉…"></textarea></div>
   `;
   showModal({
-    title: '完成心愿', body: form, okText: '解锁徽章',
+    title: '完成心愿', body: form, okText: '解锁徽章', pendingText: '正在压缩…',
     onOk: async () => {
-      const fd = new FormData(form);
+      const fd = await buildUploadFormData(form);
       fd.append('status', 'done');
       if (!fd.get('photo')?.size) fd.delete('photo');
       await api('/api/todos/'+t.id, { method: 'PUT', body: fd });
@@ -1311,8 +1388,9 @@ async function editTravel(t = {}) {
   
   showModal({
     title: t.id ? '编辑目的地' : '新增目的地', body: form,
+    pendingText: '正在压缩…',
     onOk: async () => {
-      const fd = new FormData(form);
+      const fd = await buildUploadFormData(form);
       if (!fd.get('cover')?.size) fd.delete('cover');
       if (!fd.get('name')) { toast('请填写名称'); return; }
       await api('/api/travels' + (t.id ? '/'+t.id : ''), { method: t.id ? 'PUT' : 'POST', body: fd });
@@ -1369,9 +1447,11 @@ async function addTravelMedia(t) {
   `;
   showModal({
     title: '添加媒体', body: form,
+    pendingText: '正在压缩…',
     onOk: async () => {
-      const fd = new FormData(form);
-      if (!fd.getAll('files').length || !fd.getAll('files')[0].size) { toast('请选择文件'); return; }
+      const fd = await buildUploadFormData(form);
+      if (!fd.getAll('files').length || !fd.getAll('files')[0].size) { toast('请选择文件'); return false; }
+      toast('正在上传，请稍候…');
       await api('/api/travels/' + t.id + '/media', { method: 'POST', body: fd });
       toast('已添加'); closeModal(); viewTravelMedia(t);
     }
@@ -1478,8 +1558,9 @@ function editCapsule() {
   `;
   showModal({
     title: '写一封时光信', body: form, okText: '封存',
+    pendingText: '正在压缩…',
     onOk: async () => {
-      const fd = new FormData(form);
+      const fd = await buildUploadFormData(form);
       if (!fd.get('image')?.size) fd.delete('image');
       if (!fd.get('content')) { toast('请写下想说的话'); return; }
       await api('/api/capsules', { method:'POST', body: fd });
@@ -1586,9 +1667,11 @@ function uploadOriginPhotosModal() {
   `;
   showModal({
     title: '上传缘起照片', body: form,
+    pendingText: '正在压缩…',
     onOk: async () => {
-      const fd = new FormData(form);
-      if (!fd.getAll('files').length || !fd.getAll('files')[0].size) { toast('请选择图片'); return; }
+      const fd = await buildUploadFormData(form);
+      if (!fd.getAll('files').length || !fd.getAll('files')[0].size) { toast('请选择图片'); return false; }
+      toast('正在上传，请稍候…');
       await api('/api/origin/photos', { method:'POST', body: fd });
       toast('已上传'); closeModal(); route();
     }
@@ -1616,8 +1699,10 @@ async function pageSettings(app) {
     const fileInput = el('input', { type: 'file', accept: 'image/*', style: { display:'none' } });
     fileInput.onchange = async () => {
       if (!fileInput.files[0]) return;
+      toast('正在压缩背景图…');
       const fd = new FormData();
-      fd.append('slot', k); fd.append('file', fileInput.files[0]);
+      fd.append('slot', k); fd.append('file', await compressImageFile(fileInput.files[0]));
+      toast('正在上传，请稍候…');
       await api('/api/config/background', { method:'POST', body: fd });
       toast('已更换背景'); pageSettings(app);
     };
