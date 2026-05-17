@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS diaries (
   likes INT DEFAULT 0,
   liked_by_other TINYINT DEFAULT 0,
   is_draft TINYINT DEFAULT 0,
+  diary_date DATETIME DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -230,6 +231,8 @@ async function initDB() {
   await ensureColumn('todos', 'reject_reason', 'reject_reason TEXT');
   await ensureColumn('todos', 'rejected_at', 'rejected_at DATETIME DEFAULT NULL');
   await ensureColumn('photos', 'media_type', "media_type ENUM('image','video') DEFAULT 'image'");
+  await ensureColumn('diaries', 'diary_date', 'diary_date DATETIME DEFAULT NULL');
+  await pool.query('UPDATE diaries SET diary_date = created_at WHERE diary_date IS NULL');
   await pool.query('INSERT IGNORE INTO music_state (id) VALUES (1)');
 
   // Seed defaults

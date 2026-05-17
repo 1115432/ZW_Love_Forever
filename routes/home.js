@@ -25,9 +25,9 @@ router.get('/', requireAuth, async (req, res) => {
 
   // Latest activity per partner
   const [[latestDiary]] = await pool.query(
-    `SELECT d.id, d.content, d.created_at, u.role FROM diaries d
+    `SELECT d.id, d.content, d.created_at, d.diary_date, u.role FROM diaries d
      LEFT JOIN users u ON u.id = d.author_id WHERE d.is_draft = 0
-     ORDER BY d.created_at DESC LIMIT 1`
+     ORDER BY COALESCE(d.diary_date, d.created_at) DESC, d.created_at DESC LIMIT 1`
   );
   const [[latestPhoto]] = await pool.query(
     `SELECT p.id, p.path, p.created_at, u.role FROM photos p
@@ -40,7 +40,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   // Random sweet snippet
   const [[randDiary]] = await pool.query(
-    `SELECT id, content, created_at FROM diaries WHERE is_draft = 0 ORDER BY RAND() LIMIT 1`
+    `SELECT id, content, created_at, diary_date FROM diaries WHERE is_draft = 0 ORDER BY RAND() LIMIT 1`
   );
   const [[randPhoto]] = await pool.query(`SELECT id, path, remark FROM photos ORDER BY RAND() LIMIT 1`);
 

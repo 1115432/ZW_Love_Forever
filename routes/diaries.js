@@ -10,7 +10,7 @@ router.get('/', requireAuth, async (req, res) => {
              WHERE d.is_draft = 0`;
   const vals = [];
   if (q) { sql += ' AND d.content LIKE ?'; vals.push('%' + q + '%'); }
-  sql += ' ORDER BY d.created_at DESC';
+  sql += ' ORDER BY COALESCE(d.diary_date, d.created_at) DESC, d.created_at DESC';
   const [rows] = await pool.query(sql, vals);
   res.json({ list: rows });
 });
@@ -31,20 +31,21 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { content, weather = '', is_draft = 0 } = req.body;
+  const { content, weather = '', diary_date = null, is_draft = 0 } = req.body;
   if (!content) return res.status(400).json({ error: '日记内容不能为空' });
   const [r] = await pool.query(
-    'INSERT INTO diaries (content,weather,author_id,is_draft) VALUES (?,?,?,?)',
-    [content, weather, req.session.userId, Number(is_draft) ? 1 : 0]
+    'INSERT INTO diaries (content,weather,author_id,is_draft,diary_date) VALUES (?,?,?,?,?)',
+    [content, weather, req.session.userId, Number(is_draft) ? 1 : 0, diary_date || null]
   );
   res.json({ ok: true, id: r.insertId });
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-  const { content, weather, is_draft } = req.body;
+  const { content, weather, diary_date, is_draft } = req.body;
   const fields = [], vals = [];
   if (content !== undefined) { fields.push('content = ?'); vals.push(content); }
   if (weather !== undefined) { fields.push('weather = ?'); vals.push(weather); }
+  if (diary_date !== undefined) { fields.push('diary_date = ?'); vals.push(diary_date || null); }
   if (is_draft !== undefined) { fields.push('is_draft = ?'); vals.push(Number(is_draft) ? 1 : 0); }
   if (!fields.length) return res.json({ ok: true });
   vals.push(req.params.id);

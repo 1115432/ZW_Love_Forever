@@ -56,6 +56,13 @@ const fmtDateTime = (d) => {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+function toLocalDateTimeValue(d) {
+  if (!d) return '';
+  const x = new Date(d);
+  if (isNaN(x)) return '';
+  x.setMinutes(x.getMinutes() - x.getTimezoneOffset());
+  return x.toISOString().slice(0, 16);
+}
 async function compressImageFile(file, maxSide = 1280, quality = 0.72) {
   if (!file.type.startsWith('image/') || /gif|svg/i.test(file.type) || file.size < 250 * 1024) return file;
   const bitmap = await loadImageBitmap(file);
@@ -1014,7 +1021,7 @@ async function pageDiaries(app, rest) {
     app.appendChild(el('div', { class: 'card diary-card', onclick: () => location.hash = '#/diaries/' + d.id, style: { cursor: 'pointer' } }, [
       el('div', { class: 'meta' }, [
         el('span', { html: roleEmblem(d.author_role) }),
-        el('span', {}, fmtDateTime(d.created_at)),
+        el('span', {}, fmtDateTime(d.diary_date || d.created_at)),
         d.weather ? el('span', {}, `· ${d.weather}`) : null,
         el('span', {}, `· ♥ ${d.likes || 0}`),
       ]),
@@ -1033,7 +1040,7 @@ async function pageDiaryDetail(app, id) {
   app.appendChild(el('div', { class: 'card' }, [
     el('div', { class: 'diary-card meta', style: { marginBottom: '10px' } }, [
       el('span', { html: roleEmblem(diary.author_role) }),
-      el('span', {}, fmtDateTime(diary.created_at)),
+      el('span', {}, fmtDateTime(diary.diary_date || diary.created_at)),
       diary.weather ? el('span', {}, `· ${diary.weather}`) : null,
     ]),
     el('div', { class: 'content', style: { lineHeight: 1.8, whiteSpace: 'pre-wrap' }, html: diary.content }),
@@ -1067,13 +1074,14 @@ async function pageDiaryDetail(app, id) {
 function editDiary(d = {}) {
   const form = el('form', { onsubmit: e => e.preventDefault() });
   form.innerHTML = `
+    <div class="form-row"><label>日记时间（用于补录以前写的日记）</label><input type="datetime-local" name="diary_date" value="${toLocalDateTimeValue(d.diary_date || d.created_at || new Date())}"></div>
     <div class="form-row"><label>天气 / 心情</label><input name="weather" placeholder="如 晴 / 想你 / 一起开黑" value="${escapeHtml(d.weather || '')}"></div>
     <div class="form-row"><label>日记内容（支持换行）</label><textarea name="content" rows="10" placeholder="今天和你…">${escapeHtml(d.content || '')}</textarea></div>
   `;
   showModal({
     title: d.id ? '编辑日记' : '写日记', body: form,
     onOk: async () => {
-      const body = { content: form.content.value, weather: form.weather.value };
+      const body = { content: form.content.value, weather: form.weather.value, diary_date: form.diary_date.value || null };
       if (!body.content.trim()) { toast('日记内容不能为空'); return; }
       await api('/api/diaries' + (d.id ? '/'+d.id : ''), { method: d.id ? 'PUT' : 'POST', body });
       toast('已保存'); closeModal(); route();
