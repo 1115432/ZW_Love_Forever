@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Love Forever · 庄园羁绊通道</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="login-body">
+  <div class="login-bg"></div>
+  <div class="login-card">
+    <div class="login-emblem">
+      <img class="emblem-dog" src="/assets/mascots/boy-1.png" alt="金毛"
+        onerror="this.outerHTML='<span class=&quot;emblem-shark&quot; title=&quot;漆黑烈焰使&quot;>�</span>'">
+      <span class="emblem-x">×</span>
+      <img class="emblem-dog" src="/assets/mascots/girl-1.png" alt="小白狗"
+        onerror="this.outerHTML='<span class=&quot;emblem-bee&quot; title=&quot;邪王真眼使&quot;>�</span>'">
+    </div>
+    <h1 class="login-title">Love Forever</h1>
+    <p class="login-sub">始于第五人格 · 终于彼此相伴</p>
+    <form id="loginForm" class="login-form" autocomplete="off">
+      <label>
+        <span>羁绊代号</span>
+        <input type="text" name="username" placeholder="账号（shark / bee）" required>
+      </label>
+      <label>
+        <span>羁绊密钥</span>
+        <input type="password" name="password" placeholder="密码" required>
+      </label>
+      <label class="login-remember">
+        <input type="checkbox" name="remember" checked>
+        <span>记住我，自动进入庄园</span>
+      </label>
+      <button type="submit" class="btn-primary">开启羁绊通道</button>
+      <p id="loginMsg" class="login-msg"></p>
+    </form>
+    <p class="login-foot">🐶 线条小狗在终点等你们</p>
+  </div>
+<script>
+const form = document.getElementById('loginForm');
+const msg = document.getElementById('loginMsg');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  msg.textContent = '正在开启庄园羁绊通道…';
+  msg.className = 'login-msg';
+  const fd = new FormData(form);
+  const body = {
+    username: fd.get('username'),
+    password: fd.get('password'),
+    remember: !!fd.get('remember')
+  };
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      msg.textContent = data.error || '账号或密码有误，请重新输入';
+      msg.classList.add('error');
+      return;
+    }
+    msg.textContent = data.message || '欢迎回来';
+    msg.classList.add('ok');
+    setTimeout(() => location.href = '/', 600);
+  } catch (err) {
+    msg.textContent = '网络似乎走散了，请稍后再试';
+    msg.classList.add('error');
+  }
+});
+// auto-redirect if already logged in
+fetch('/api/auth/me').then(r => r.ok && (location.href = '/')).catch(() => {});
+</script>
+</body>
+</html>

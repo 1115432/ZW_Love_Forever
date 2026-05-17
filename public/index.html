@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Love Forever · 二人专属</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="bgLayer" class="bg-layer"></div>
+  <div id="bgMask" class="bg-mask"></div>
+
+  <header class="topbar">
+    <button id="navToggle" class="nav-toggle" title="菜单">☰</button>
+    <div class="brand">
+      <span class="brand-emblem">🦈🐝</span>
+      <span class="brand-text">Love Forever</span>
+    </div>
+    <div class="topbar-right">
+      <span id="onlineState" class="online-pill">在线状态…</span>
+      <span id="meBadge" class="me-badge"></span>
+      <button id="logoutBtn" class="icon-btn" title="离开庄园">🚪</button>
+    </div>
+  </header>
+
+  <aside id="sidebar" class="sidebar">
+    <nav class="nav">
+      <a href="#/home" data-route="home">🏠 <span>恋爱总览</span></a>
+      <a href="#/anniversaries" data-route="anniversaries">🎂 <span>纪念日</span></a>
+      <a href="#/timeline" data-route="timeline">📸 <span>时间线照片墙</span></a>
+      <a href="#/albums" data-route="albums">🖼️ <span>私密相册</span></a>
+      <a href="#/diaries" data-route="diaries">📔 <span>恋爱日记</span></a>
+      <a href="#/messages" data-route="messages">💌 <span>悄悄话留言板</span></a>
+      <a href="#/todos" data-route="todos">✅ <span>未做之事</span></a>
+      <a href="#/travels" data-route="travels">🗺️ <span>期待旅行</span></a>
+      <a href="#/capsules" data-route="capsules">⏳ <span>时光胶囊</span></a>
+      <a href="#/music" data-route="music">🎧 <span>一起听歌</span></a>
+      <a href="#/origin" data-route="origin">🎭 <span>庄园缘起</span></a>
+      <a href="#/settings" data-route="settings">⚙️ <span>背景与设置</span></a>
+    </nav>
+    <div class="sidebar-foot">🐶 线条小狗陪伴中</div>
+  </aside>
+
+  <main id="app" class="main"></main>
+
+  <footer class="footer">
+    <span id="footerText">始于第五人格，终于彼此相伴；漆黑烈焰使 × 邪王真眼使，鲨鱼与蜜蜂的永恒羁绊</span>
+  </footer>
+
+  <div id="modalRoot"></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
