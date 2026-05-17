@@ -619,7 +619,11 @@ async function pageTimeline(app) {
       marginBottom: '16px',
       fontSize: '18px',
       fontWeight: 600,
-      color: '#000'
+      color: '#000',
+      position: 'sticky',
+      top: '8px',
+      zIndex: 12,
+      boxShadow: '0 6px 18px rgba(0,0,0,.08)'
     }}, [
       el('span', { class: 'collapse-icon', style: { 
         transition: 'transform 0.2s',
@@ -648,7 +652,11 @@ async function pageTimeline(app) {
         marginBottom: '12px',
         fontSize: '16px',
         fontWeight: 500,
-        color: '#000'
+        color: '#000',
+        position: 'sticky',
+        top: '8px',
+        zIndex: 13,
+        boxShadow: '0 6px 18px rgba(0,0,0,.08)'
       }}, [
         el('span', { class: 'collapse-icon', style: {
           transition: 'transform 0.2s',
@@ -677,7 +685,12 @@ async function pageTimeline(app) {
           marginBottom: '10px',
           fontSize: '14px',
           fontWeight: 500,
-          color: '#000'
+          color: '#000',
+          position: 'sticky',
+          top: '8px',
+          zIndex: 14,
+          boxShadow: '0 6px 18px rgba(0,0,0,.08)',
+          backdropFilter: 'blur(8px)'
         }}, [
           el('span', { class: 'collapse-icon', style: {
             transition: 'transform 0.2s',
