@@ -155,7 +155,8 @@ CREATE TABLE IF NOT EXISTS diaries (
   liked_by_other TINYINT DEFAULT 0,
   is_draft TINYINT DEFAULT 0,
   diary_date DATETIME DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_diary_date (diary_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS diary_comments (
@@ -233,6 +234,7 @@ async function initDB() {
   await ensureColumn('photos', 'media_type', "media_type ENUM('image','video') DEFAULT 'image'");
   await ensureColumn('diaries', 'diary_date', 'diary_date DATETIME DEFAULT NULL');
   await pool.query('UPDATE diaries SET diary_date = created_at WHERE diary_date IS NULL');
+  await pool.query('CREATE INDEX idx_diary_date ON diaries (diary_date)').catch(() => {});
   await pool.query('INSERT IGNORE INTO music_state (id) VALUES (1)');
 
   // Seed defaults
